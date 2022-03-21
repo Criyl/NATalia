@@ -1,0 +1,32 @@
+version: '3'
+
+services:
+  api:
+    restart:
+      unless-stopped
+    build:
+      context: API
+    depends_on:
+      - postgresql
+    env_file:
+      - ./.env
+    ports:
+      - "80:80"
+  bot:
+    restart:
+      unless-stopped
+    build:
+      context: BOT
+    depends_on:
+      - api
+    env_file:
+      - ./.env
+
+  postgresql:
+    image: postgres:12.1-alpine
+    environment:
+      POSTGRES_DB: database_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"

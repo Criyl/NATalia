@@ -1,0 +1,10 @@
+# https://taskfile.org
+
+version: "2"
+
+tasks:
+  run:
+    cmds:
+      - docker-compose build --parallel
+      - docker-compose down -v
+      - docker-compose up

@@ -1,24 +1,17 @@
 import os
-import discord
-from dotenv import load_dotenv
-from model import naive_bayes as nb
-from discord.ext import commands
+import requests
+import pandas as pd
 from discord.ext.commands import Bot
+import urllib.parse
 
 GOOD = '\N{THUMBS UP SIGN}'
 BAD = '\N{THUMBS DOWN SIGN}'
 IDK = '\N{Eyes}'
 
-load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 PREFIX = '.'
 bot = Bot(PREFIX)
-
-PATH_STOP = "model/stop.txt"
-PATH_MODEL = "model/model.pkl"
-
-model = nb.Model(PATH_MODEL, PATH_STOP)
 
 
 @bot.event
@@ -41,7 +34,8 @@ async def on_message(message):
         await bot.process_commands(message)
         return
 
-    positive = model.message_is_positive(message.content)
+    resp = requests.get("http://localhost/predict?msg=%s" % urllib.parse.quote("my text that should work"))
+    positive = float(resp.text) > 0
 
     if positive > 0:
         emoji = GOOD
@@ -60,25 +54,19 @@ async def on_reaction_add(reaction, user):
 
     data = reaction.message.content
     emoji = reaction.emoji
-    WEIGHT = 2
-    if emoji == GOOD:
-        model.add_data(("%s " % data) * WEIGHT, True)
-    elif emoji == BAD:
-        model.add_data(("%s " % data) * WEIGHT, False)
 
-    # expensive, try saving on set intervals given there are changes.
-    model.model.to_pickle(PATH_MODEL)
-
-    print(model)
+    requests.post("http://localhost/add", json={
+        "text": data,
+        "positive": emoji == GOOD
+    })
 
 
 @bot.command(name='top')
 async def top(ctx):
-    temp = model.model.copy()
-    temp['diff'] =  temp['word|pos'] - temp['word|neg']
-    temp = temp.sort_values(by=['diff'],ascending=False)
-    await ctx.send("```%s```"%temp)
-    print("sent")
-
+    resp = requests.get("http://localhost/top")
+    temp = pd.read_json(resp.text)
+    temp['diff'] = temp['word|pos'] - temp['word|neg']
+    temp = temp.sort_values(by=['diff'], ascending=False)
+    await ctx.send("```%s```" % temp)
 
 bot.run(TOKEN)
